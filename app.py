@@ -1,83 +1,82 @@
-import requests
+from flask import Flask
+import threading
 import time
 from datetime import datetime
 import pytz
-from flask import Flask
-import threading
 
 app = Flask(__name__)
 
 # =========================
-# CEK SESSION NEW YORK
+# CONFIG
 # =========================
-def is_ny_session():
-    now_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
-    ny_time = now_utc.astimezone(pytz.timezone("America/New_York"))
-    hour = ny_time.hour
-    return 6 <= hour < 12
+START_HOUR = 6
+END_HOUR = 12
 
-# =========================
-# AMBIL DATA EUR/USD (TANPA API KEY)
-# =========================
-def get_price():
-    try:
-        url = "https://stooq.com/q/l/?s=eurusd&i=5"
-        res = requests.get(url).text
+# timezone New York
+ny_tz = pytz.timezone("America/New_York")
 
-        # format: EURUSD,2026-03-27 21:00:00,1.08,1.09,1.07,1.085
-        parts = res.strip().split(",")
-
-        candle = {
-            "open": float(parts[2]),
-            "high": float(parts[3]),
-            "low": float(parts[4]),
-            "close": float(parts[5])
-        }
-
-        return candle
-
-    except:
-        print("❌ Gagal ambil data")
-        return None
 
 # =========================
-# STRATEGY SEDERHANA
+# CEK WAKTU TRADING
 # =========================
-def strategy(candle):
-    if candle["close"] > candle["open"]:
-        print("📈 BUY SIGNAL")
+def is_trading_time():
+    now = datetime.now(ny_tz)
+    hour = now.hour
+    return START_HOUR <= hour < END_HOUR
+
+
+# =========================
+# LOGIC TRADING (EDIT DISINI)
+# =========================
+def trading_logic():
+    print("🔍 Checking market...")
+
+    # contoh dummy logic
+    # nanti bisa diganti ambil data API / strategi kamu
+    import random
+    signal = random.choice(["BUY", "SELL", "NONE"])
+
+    if signal == "BUY":
+        print("🟢 BUY SIGNAL")
+    elif signal == "SELL":
+        print("🔴 SELL SIGNAL")
     else:
-        print("📉 SELL SIGNAL")
+        print("⚪ NO TRADE")
+
 
 # =========================
 # LOOP BOT
 # =========================
-def run_bot():
+def bot_loop():
     while True:
-        if is_ny_session():
-            print("\n🟢 SESSION NY AKTIF")
+        try:
+            if is_trading_time():
+                print("⏰ Trading session ON")
+                trading_logic()
+            else:
+                print("💤 Outside trading hours")
 
-            candle = get_price()
-            if candle:
-                print("Candle:", candle)
-                strategy(candle)
+            time.sleep(60)  # cek tiap 1 menit
 
-        else:
-            print("\n🔴 DI LUAR SESSION (tidur)")
+        except Exception as e:
+            print("❌ ERROR:", e)
+            time.sleep(10)
 
-        time.sleep(300)  # 5 menit
 
 # =========================
-# WEB SERVER (BIAR REPLIT GAK SLEEP)
+# WEB SERVER (BIAR REPLIT GA SLEEP)
 # =========================
 @app.route('/')
 def home():
-    return "Bot jalan!"
+    return "Bot is running!"
+
+
+def run_flask():
+    app.run(host="0.0.0.0", port=8080)
+
 
 # =========================
-# JALANKAN
+# RUN THREAD
 # =========================
-threading.Thread(target=run_bot).start()
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+threading.Thread(target=bot_loop).start()
+threading.Thread(target=run_flask).start()
